@@ -49,7 +49,6 @@
 			isa = PBXGroup;
 			children = (
 				5BE45FB722B37F04005EF97A /* Project Emoji */,
-				5BE45FD022B382C3005EF97A /* View */,
 				5BE45FB622B37F04005EF97A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -71,6 +70,7 @@
 				5BE45FD322B38356005EF97A /* Model */,
 				5BE45FCD22B37F84005EF97A /* Resources */,
 				5BE45FCE22B37F8C005EF97A /* Storyboards */,
+				5BE45FD022B382C3005EF97A /* View */,
 			);
 			path = "Project Emoji";
 			sourceTree = "<group>";
