@@ -12,18 +12,35 @@ class EmojiTableViewController: UITableViewController {
     
     // MARK: - Stored Propeties
     let cellManager = CellManager()
-    var emojis: [[Emoji]]!
     let storageManager = StorageManager()
+    var sectionsName = [String]()
+    var emojis: [[Emoji]]! {
+        didSet {
+            storageManager.save(emojis: emojis)
+        }
+    }
 }
 
 // MARK: - UIViewController Methods
 extension EmojiTableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
-        
         /// load emojis
-        emojis = loadEmojis()
+        emojis = storageManager.load() ?? loadEmojis()
+        /// setup user interface
+        setupUI()
+    }
+}
+
+// MARK: - UI
+extension EmojiTableViewController {
+    /// setup user interface
+    func setupUI() {
         navigationItem.leftBarButtonItem = editButtonItem
+        /// fill section name array with emoji type
+        for section in emojis {
+            sectionsName.append(section.first!.type.lowercased())
+        }
     }
 }
 
@@ -34,7 +51,7 @@ extension EmojiTableViewController {
     }
     
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        return SectionName.allCases[section].rawValue
+        return emojis[section].first?.type
     }
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -45,8 +62,17 @@ extension EmojiTableViewController {
         let cell = tableView.dequeueReusableCell(withIdentifier: "EmojiCell")!
         guard let emojiCell = cell as? EmojiTableViewCell else { return cell }
         let emoji = emojis[indexPath.section][indexPath.row]
+        /// configure emoji cell with emoji
         cellManager.configure(emojiCell, with: emoji)
         return emojiCell
+    }
+    
+    override func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {
+        let movedEmoji = emojis[sourceIndexPath.section].remove(at: sourceIndexPath.row)
+        /// change type of moved emoji to type of destination type
+        movedEmoji.type = sectionsName[destinationIndexPath.section]
+        emojis[destinationIndexPath.section].insert(movedEmoji, at: destinationIndexPath.row)
+        tableView.reloadData()
     }
 }
 
@@ -62,6 +88,7 @@ extension EmojiTableViewController {
             emojis[indexPath.section].remove(at: indexPath.row)
             if emojis[indexPath.section].isEmpty {
                 emojis.remove(at: indexPath.section)
+                sectionsName.remove(at: indexPath.section)
             }
             tableView.reloadData()
         case .insert:
@@ -82,17 +109,99 @@ extension EmojiTableViewController {
     func loadEmojis() -> [[Emoji]] {
         return [
             [
-                Emoji(symbol: "👨‍💻", name: "Man-programmer", description: "Very hard programmer", usage: "For man-programmers"),
-                Emoji(symbol: "👩‍💻", name: "Woman-programmer", description: "Very lazy programmer", usage: "For woman-programmers")
+                Emoji(symbol: "👨‍💻", name: "Man-programmer", description: "Very hard programmer", type: "Programmers", usage: "For man-programmers"),
+                Emoji(symbol: "👩‍💻", name: "Woman-programmer", description: "Very lazy programmer", type: "Programmers", usage: "For woman-programmers")
             ],
             [
-                Emoji(symbol: "👨🏿‍💻", name: "Black-man-programmer", description: "Very hard programmer", usage: "For black-man-programmers"),
-                Emoji(symbol: "👩🏿‍💻", name: "Black-woman-programmer", description: "Very lazy programmer", usage: "For black-woman-programmers"),
-                Emoji(symbol: "👶🏿", name: "Black-child-non-programmer", description: "Very cute", usage: "For black-child-non-programmers")
+                Emoji(symbol: "👨🏿‍💻", name: "Black-man-programmer", description: "Very hard programmer", type: "Black-programmers", usage: "For black-man-programmers"),
+                Emoji(symbol: "👩🏿‍💻", name: "Black-woman-programmer", description: "Very lazy programmer", type: "Black-programmers", usage: "For black-woman-programmers"),
+                Emoji(symbol: "👶🏿", name: "Black-child-non-programmer", description: "Very cute", type: "Black-programmers", usage: "For black-child-non-programmers")
             ],
             [
-                Emoji(symbol: "💻", name: "Laptop", description: "Tool for programmers", usage: "For each programmer")
+                Emoji(symbol: "💻", name: "Laptop", description: "Tool for programmers", type: "Tools", usage: "For each programmer")
             ]
         ]
+    }
+}
+
+// MARK: - Navigation
+extension EmojiTableViewController {
+    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+        guard segue.identifier == "EditEmojiSegue" else { return }
+        let destination = segue.destination as! EmojiDetailTableViewController
+        guard let indexPath = tableView.indexPathForSelectedRow else { return }
+        /// pass data to destination
+        destination.title = "Edit"
+        destination.emoji = emojis[indexPath.section][indexPath.row]
+    }
+    
+    @IBAction func unwind(_ segue: UIStoryboardSegue) {
+        guard segue.identifier == "SaveEmojiSegue" else { return }
+        let source = segue.source as! EmojiDetailTableViewController
+        let emoji = source.emoji
+        if let indexPath = tableView.indexPathForSelectedRow {
+            // edit emoji
+            var section: Int?
+            /// check if there is such emoji type
+            section = sectionsName.firstIndex(of: emoji.type.lowercased())
+            /// if such section exists
+            if let section = section {
+                /// check if it is the same section
+                if section == indexPath.section {
+                    /// update information about emoji
+                    emojis[section][indexPath.row] = emoji
+                    tableView.reloadData()
+                } else {
+                    /// remove emoji from old section
+                    emojis[indexPath.section].remove(at: indexPath.row)
+                    let row = emojis[section].count
+                    /// insert emoji to new section
+                    emojis[section].insert(emoji, at: row)
+                    
+                    /// if it is the last row in section
+                    if tableView.numberOfRows(inSection: indexPath.section) == 1 {
+                        /// update information about section name
+                        sectionsName.remove(at: indexPath.section)
+                        sectionsName.append(emoji.type.lowercased())
+                    }
+                    tableView.reloadData()
+                }
+            /// if such section does not exist
+            } else {
+                /// if it is the last row in section
+                if tableView.numberOfRows(inSection: indexPath.section) == 1 {
+                    /// update information about emoji and section name
+                    sectionsName[indexPath.section] = emoji.type.lowercased()
+                    emojis[indexPath.section] = [emoji]
+                } else {
+                    /// remove emoji from old section
+                    emojis[indexPath.section].remove(at: indexPath.row)
+                    /// create a new section with emoji
+                    emojis.append([emoji])
+                    /// add new section name
+                    sectionsName.append(emoji.type.lowercased())
+                }
+                tableView.reloadData()
+            }
+        } else {
+            // add emoji
+            var section: Int?
+            /// check if there is such emoji type
+            section = sectionsName.firstIndex(of: emoji.type.lowercased())
+            /// if such section exists
+            if let section = section {
+                /// add new emoji to existing section
+                let indexPath = IndexPath(row: emojis[section].count, section: section)
+                emojis[section].insert(emoji, at: indexPath.row)
+                tableView.insertRows(at: [indexPath], with: .automatic)
+            } else {
+                /// create a new section
+                emojis.append([emoji])
+                /// add new section name
+                sectionsName.append(emoji.type)
+                
+                tableView.reloadData()
+            }
+        }
     }
 }
